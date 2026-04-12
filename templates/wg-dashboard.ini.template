@@ -1,0 +1,76 @@
+[Peers]
+remote_endpoint = <your-public-ip>
+peer_global_dns = <your-chosen-dns>
+peer_endpoint_allowed_ip = 0.0.0.0/0
+peer_display_mode = grid
+peer_mtu = 1420
+peer_keep_alive = 21
+
+[Server]
+app_port = 10086
+wg_conf_path = /etc/wireguard
+awg_conf_path = /etc/amnezia/amneziawg
+app_prefix =
+app_ip = 0.0.0.0
+auth_req = true
+version = v4.3.2
+dashboard_refresh_interval = 60000
+dashboard_peer_list_display = grid
+dashboard_sort = status
+dashboard_theme = dark
+dashboard_api_key = false
+dashboard_language = en-US
+clients_statistics_interval = 300000
+dashboard_timezone = Etc/UTC
+login_copyright_text = Tunnela {version} | Developed with ❤️ by Donald Zou
+login_copyright_url = https://github.com/donaldzou
+# direct = Gunicorn listen TCP (app_ip:app_port); nginx_socket = Unix socket untuk Nginx reverse proxy
+app_listen_mode = direct
+gunicorn_socket_path = ./run/gunicorn.sock
+# Opsional: nama unit systemd untuk tombol "Restart WGDashboard" di UI (atau env WGDASHBOARD_SYSTEMD_UNIT)
+systemd_unit =
+
+[Account]
+username = admin
+# Hash contoh untuk password default hulu — ganti lewat UI setelah login pertama.
+password = $2b$12$nWgPW.4adylN2oMhTyS5AeoiAvDj9SZxnXS.lCMkJYCV6jytmHKzu
+enable_totp = false
+totp_verified = false
+# totp_key: biarkan tidak ada — aplikasi mengisi otomatis saat first run (jangan commit nilai asli ke repo publik)
+
+[Other]
+welcome_session = true
+
+[Database]
+# sqlite (default) atau postgresql / mysql — harus cocok dengan requirements (Postgres memakai driver psycopg3: postgresql+psycopg)
+type = sqlite
+host =
+port =
+username =
+password =
+# Contoh monolit + PostgreSQL lokal (host boleh pakai host:port, field port bisa dikosongkan):
+# type = postgresql
+# host = 127.0.0.1:5432
+# port =
+# username = dev
+# password = <plain-text seperti di wg-dashboard.ini>
+
+[Email]
+server =
+port =
+encryption =
+username =
+email_password =
+authentication_required = true
+send_from =
+email_template =
+
+[OIDC]
+admin_enable = false
+client_enable = false
+
+[Clients]
+enable = true
+
+[WireGuardConfiguration]
+autostart =

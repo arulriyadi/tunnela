@@ -1,0 +1,39 @@
+# WGDashboard — contoh whitelist sudo (NOPASSWD) untuk user yang menjalankan Gunicorn (bukan root).
+# Salin ke /etc/sudoers.d/wgdashboard, ganti DEPLOYUSER dan /opt/wgdashboard/src sesuai server Anda, lalu:
+#   sudo visudo -cf /etc/sudoers.d/wgdashboard
+#   sudo chmod 440 /etc/sudoers.d/wgdashboard
+#
+# Ganti juga nama unit wgdashboard.service jika berbeda (harus sama dengan systemd_unit / WGDASHBOARD_SYSTEMD_UNIT).
+
+Defaults:DEPLOYUSER !requiretty
+
+# --- Nginx: Deploy dari UI + reload ---
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/sbin/nginx -t
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/sbin/nginx -s reload
+DEPLOYUSER ALL=(root) NOPASSWD: /bin/systemctl reload nginx
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/bin/systemctl reload nginx
+DEPLOYUSER ALL=(root) NOPASSWD: /sbin/service nginx reload
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/sbin/service nginx reload
+
+# --- Tulis konfigurasi situs (wrapper sudo tee; backend bawaan menulis langsung jika proses root) ---
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/wgdashboard.conf
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/bin/tee /etc/nginx/conf.d/wgdashboard.conf
+DEPLOYUSER ALL=(root) NOPASSWD: /bin/tee /etc/nginx/sites-available/wgdashboard.conf
+DEPLOYUSER ALL=(root) NOPASSWD: /bin/tee /etc/nginx/conf.d/wgdashboard.conf
+
+# --- Restart WGDashboard dari UI (API restartWgDashboardService) ---
+DEPLOYUSER ALL=(root) NOPASSWD: /bin/systemctl restart wgdashboard.service
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/bin/systemctl restart wgdashboard.service
+
+# --- wgd.sh (path instalasi — sesuaikan) ---
+DEPLOYUSER ALL=(root) NOPASSWD: /opt/wgdashboard/src/wgd.sh start
+DEPLOYUSER ALL=(root) NOPASSWD: /opt/wgdashboard/src/wgd.sh stop
+DEPLOYUSER ALL=(root) NOPASSWD: /opt/wgdashboard/src/wgd.sh restart
+
+# --- Date & time dari UI (Settings) + helper wgd.sh ---
+DEPLOYUSER ALL=(root) NOPASSWD: /usr/bin/timedatectl set-timezone *
+DEPLOYUSER ALL=(root) NOPASSWD: /bin/timedatectl set-timezone *
+
+# --- Direktori parent socket Unix (sesuaikan dengan gunicorn_socket_path; atau buat manual sebagai root) ---
+# DEPLOYUSER ALL=(root) NOPASSWD: /usr/bin/mkdir -p /run/wgdashboard
+# DEPLOYUSER ALL=(root) NOPASSWD: /usr/bin/chmod 755 /run/wgdashboard

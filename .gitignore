@@ -1,0 +1,30 @@
+# Local / secret config (gunakan template & *.example)
+src/wg-dashboard.ini
+src/ssl-tls.ini
+src/certbot.ini
+
+# Runtime & data
+src/gunicorn.pid
+src/db/
+src/log/
+src/download/
+src/run/
+
+# Python
+src/venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Frontend
+src/static/app/node_modules/
+src/static/client/node_modules/
+src/static/app/dist/
+# Jika build lokal ingin di-commit, hapus baris dist di atas
+
+# Editor & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

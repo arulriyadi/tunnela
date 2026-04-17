@@ -1,5 +1,33 @@
-import shutil, subprocess, time, threading, psutil
+import shutil, socket, subprocess, time, threading, psutil
 from flask import current_app
+
+
+def _host_snapshot():
+    """Primary IPv4 via default-route probe; uptime from boot time."""
+    try:
+        boot = psutil.boot_time()
+        uptime_seconds = int(max(0, time.time() - boot))
+    except Exception:
+        uptime_seconds = 0
+    primary_ipv4 = ""
+    for dest in (("8.8.8.8", 53), ("1.1.1.1", 80)):
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(0.25)
+            sock.connect(dest)
+            primary_ipv4 = sock.getsockname()[0]
+            break
+        except OSError:
+            pass
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+    return {"uptime_seconds": uptime_seconds, "primary_ipv4": primary_ipv4}
+
 
 class SystemStatus:
     def __init__(self):
@@ -30,7 +58,8 @@ class SystemStatus:
             "Disks": self.Disks,
             "NetworkInterfaces": self.NetworkInterfaces,
             "NetworkInterfacesPriority": self.NetworkInterfaces.getInterfacePriorities(),
-            "Processes": self.Processes
+            "Processes": self.Processes,
+            "Host": _host_snapshot(),
         }
         
 

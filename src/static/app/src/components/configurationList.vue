@@ -2,12 +2,11 @@
 import {WireguardConfigurationsStore} from "@/stores/WireguardConfigurationsStore.js";
 import ConfigurationCard from "@/components/configurationListComponents/configurationCard.vue";
 import LocaleText from "@/components/text/localeText.vue";
-import SystemStatus from "@/components/systemStatusComponents/systemStatusWidget.vue";
 import {GetLocale} from "@/utilities/locale.js";
 
 export default {
 	name: "configurationList",
-	components: {SystemStatus, LocaleText, ConfigurationCard},
+	components: {LocaleText, ConfigurationCard},
 	async setup(){
 		const wireguardConfigurationsStore = WireguardConfigurationsStore();
 		return {wireguardConfigurationsStore}
@@ -62,7 +61,6 @@ export default {
 <template>
 	<div class="mt-md-5 mt-3">
 		<div class="container-fluid">
-			<SystemStatus></SystemStatus>
 			<div class="d-flex mb-4 configurationListTitle align-items-md-center gap-2 flex-column flex-md-row">
 				<h2 class="text-body d-flex mb-0">
 					<LocaleText t="WireGuard Configurations"></LocaleText>

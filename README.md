@@ -8,13 +8,25 @@ Indonesian step-by-step guides live under [`src/install-step-by-step.md`](src/in
 
 ## Screenshots
 
+### Dashboard
+
 **Home — WireGuard overview** — interface/peer summary, cumulative traffic, **system status** (CPU, memory, storage, swap), **network throughput** chart (all interfaces), server info, and **network flow** (peers → tunnels → Internet).
 
-![Home — WireGuard overview with system status, throughput chart, and network flow](docs/screenshots/home-wireguard-overview.png)
+![Home — WireGuard overview](docs/screenshots/home-wireguard-overview.png)
 
 **Clients — list management** — 24h network overview, per-configuration traffic table, aggregate traffic snapshot, and searchable peer list with per-peer stats.
 
 ![Clients — network overview and peer list](docs/screenshots/clients-list-management.png)
+
+### Settings
+
+**Date & time, listen mode & systemd** — server timezone, **Gunicorn** listen mode (direct TCP vs **Unix socket** for Nginx), socket path, and optional **systemd** unit name for in-app restarts.
+
+![Settings — timezone, Gunicorn listen mode, systemd unit](docs/screenshots/settings-timezone-gunicorn-systemd.png)
+
+**Nginx reverse proxy & Clients statistics** — deploy snippet / reverse-proxy card for **Nginx**, and **Clients** network overview / statistics configuration.
+
+![Settings — Nginx reverse proxy and Clients statistics](docs/screenshots/settings-nginx-clients-statistics.png)
 
 ---
 

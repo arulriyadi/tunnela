@@ -28,7 +28,7 @@ WGDashboard — Alur pengecekan versi / update dari GitHub
 
   Dibandingkan di backend dengan konstanta Python:
 
-       modules/DashboardConfig.py  →  DashboardVersion = 'v4.3.2'
+       modules/DashboardConfig.py  →  DashboardVersion = 'v4.3.3'
 
   Perbandingan memakai packaging.version.parse(tag_name) vs parse(DashboardVersion).
 

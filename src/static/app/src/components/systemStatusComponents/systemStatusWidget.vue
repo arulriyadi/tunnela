@@ -19,6 +19,7 @@ import CpuCore from "@/components/systemStatusComponents/cpuCore.vue";
 import StorageMount from "@/components/systemStatusComponents/storageMount.vue";
 import {DashboardConfigurationStore} from "@/stores/DashboardConfigurationStore.js";
 import {GetLocale} from "@/utilities/locale.js";
+import {useElementSize} from "@vueuse/core";
 
 Chart.register(
 	LineElement,
@@ -33,6 +34,18 @@ Chart.register(
 
 const dashboardStore = DashboardConfigurationStore();
 let interval = null;
+
+/** Match throughput card height to System & Server Info (no stretch gap / empty footer). */
+const systemInfoCardRef = ref(null);
+const {height: systemInfoCardHeight} = useElementSize(systemInfoCardRef);
+
+const throughputCardStyle = computed(() => {
+	const h = systemInfoCardHeight.value;
+	if (!Number.isFinite(h) || h < 80) {
+		return {minHeight: "260px"};
+	}
+	return {height: `${Math.round(h)}px`, minHeight: "240px"};
+});
 
 /** Rolling samples from each /api/systemStatus poll (5s); ~4 minutes of history */
 const MAX_HISTORY = 48;
@@ -197,6 +210,113 @@ const siCpuLabel = computed(() => `${Math.round(siCpuPct.value)}%`);
 const siMemLabel = computed(() => `${Math.round(siMemPct.value)}%`);
 const siStorageLabel = computed(() => `${siStoragePct.value.toFixed(1)}%`);
 const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
+
+const fmtGB = (bytes) => {
+	if (bytes == null || !Number.isFinite(Number(bytes)) || Number(bytes) < 0) {
+		return null;
+	}
+	return (Number(bytes) / 1073741824).toFixed(1);
+};
+
+const fmtGBPair = (used, total) => {
+	const u = fmtGB(used);
+	const t = fmtGB(total);
+	if (u == null || t == null) {
+		return "—";
+	}
+	return `${u} / ${t} ${GetLocale("GB")}`;
+};
+
+const rootDisk = computed(() => {
+	const disks = data.value?.Disks;
+	if (!Array.isArray(disks) || disks.length === 0) {
+		return null;
+	}
+	return disks.find((x) => x.mountPoint === "/") ?? disks[0];
+});
+
+const cpuSubtitle = computed(() => {
+	const c = data.value?.CPU;
+	if (!c) {
+		return "";
+	}
+	const n = Number(c.logical_cores);
+	const cores =
+		Number.isFinite(n) && n > 0 ? `${Math.round(n)} ${GetLocale("cores")}` : "";
+	const model = (c.model || "").trim();
+	const parts = [];
+	if (cores) {
+		parts.push(cores);
+	}
+	if (model) {
+		parts.push(model);
+	}
+	return parts.join(" · ");
+});
+
+const memGbLine = computed(() => {
+	const m = data.value?.Memory?.VirtualMemory;
+	if (!m) {
+		return "—";
+	}
+	return fmtGBPair(m.used, m.total);
+});
+
+const storageUsedLine = computed(() => {
+	const d = rootDisk.value;
+	if (!d) {
+		return "—";
+	}
+	const u = fmtGB(d.used);
+	const t = fmtGB(d.total);
+	if (u == null || t == null) {
+		return "—";
+	}
+	return `${GetLocale("sysinfo storage used")}: ${u} / ${t} ${GetLocale("GB")}`;
+});
+
+const storageFreeLine = computed(() => {
+	const d = rootDisk.value;
+	if (!d) {
+		return "—";
+	}
+	const f = fmtGB(d.free);
+	const t = fmtGB(d.total);
+	if (f == null || t == null) {
+		return "—";
+	}
+	return `${GetLocale("sysinfo storage free")}: ${f} / ${t} ${GetLocale("GB")}`;
+});
+
+const storageMountHint = computed(() => {
+	const mp = rootDisk.value?.mountPoint;
+	return mp ? mp : "";
+});
+
+const swapGbLine = computed(() => {
+	const s = data.value?.Memory?.SwapMemory;
+	if (!s || !Number(s.total)) {
+		return GetLocale("sysinfo no swap");
+	}
+	return fmtGBPair(s.used, s.total);
+});
+
+const runtimeRows = computed(() => {
+	const rv = data.value?.RuntimeVersions ?? {};
+	const rows = [
+		{key: "python", labelKey: "Python"},
+		{key: "gunicorn", labelKey: "Gunicorn"},
+		{key: "nginx", labelKey: "Nginx"},
+		{key: "flask", labelKey: "Flask"},
+		{key: "wireguard_tools", labelKey: "WireGuard tools"},
+		{key: "openssl", labelKey: "OpenSSL"},
+	];
+	return rows.map((r) => ({
+		...r,
+		value:
+			rv[r.key] && String(rv[r.key]).length ? String(rv[r.key]) : "—",
+	}));
+});
 </script>
 
 <template>
@@ -216,14 +336,15 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 					</h6>
 				</div>
 				<div class="progress" role="progressbar" style="height: 6px">
-					<div class="progress-bar" :style="{width: `${data?.CPU.cpu_percent}%` }"></div>
+					<div class="progress-bar" :style="{ width: `${data?.CPU.cpu_percent}%` }"></div>
 				</div>
-				<div class="d-flex mt-2 gap-1">
+				<div class="d-flex mt-2 gap-1 flex-wrap">
 					<CpuCore
 						v-for="(cpu, count) in data?.CPU.cpu_percent_per_cpu"
 						:key="count"
 						:align="(count + 1) > Math.round((data?.CPU?.cpu_percent_per_cpu?.length || 0) / 2)"
-						:core_number="count" :percentage="cpu"
+						:core_number="count"
+						:percentage="cpu"
 					></CpuCore>
 				</div>
 			</div>
@@ -243,15 +364,18 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 				<div class="progress" role="progressbar" style="height: 6px">
 					<div
 						class="progress-bar bg-success"
-						:style="{ width: `${(data?.Disks?.find((x) => x.mountPoint === '/')?.percent ?? data?.Disks?.[0]?.percent ?? 0)}%` }"
+						:style="{
+							width: `${data?.Disks?.find((x) => x.mountPoint === '/')?.percent ?? data?.Disks?.[0]?.percent ?? 0}%`,
+						}"
 					></div>
 				</div>
-				<div class="d-flex mt-2 gap-1">
-					<StorageMount v-for="(disk, count) in data?.Disks"
-					              v-if="data"
-					              :key="disk.mountPoint"
-					              :align="(count + 1) > Math.round(data?.Disks.length / 2)"
-					              :mount="disk"
+				<div class="d-flex mt-2 gap-1 flex-wrap">
+					<StorageMount
+						v-for="(disk, count) in data?.Disks"
+						v-if="data"
+						:key="disk.mountPoint"
+						:align="(count + 1) > Math.round(data?.Disks.length / 2)"
+						:mount="disk"
 					></StorageMount>
 				</div>
 			</div>
@@ -269,7 +393,10 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 					</h6>
 				</div>
 				<div class="progress" role="progressbar" style="height: 6px">
-					<div class="progress-bar bg-info" :style="{width: `${data?.Memory.VirtualMemory.percent}%` }"></div>
+					<div
+						class="progress-bar bg-info"
+						:style="{ width: `${data?.Memory.VirtualMemory.percent}%` }"
+					></div>
 				</div>
 			</div>
 			<div class="col-md-6 col-sm-12 col-xl-3">
@@ -286,35 +413,49 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 					</h6>
 				</div>
 				<div class="progress" role="progressbar" style="height: 6px">
-					<div class="progress-bar bg-warning" :style="{width: `${data?.Memory.SwapMemory.percent}%` }"></div>
+					<div
+						class="progress-bar bg-warning"
+						:style="{ width: `${data?.Memory.SwapMemory.percent}%` }"
+					></div>
 				</div>
 			</div>
 		</div>
 
-		<div class="row g-3 mb-5 align-items-stretch">
+		<div class="row g-3 mb-5 align-items-start">
 			<div class="col-lg-8">
-				<div class="card rounded-3 h-100 border border-secondary-subtle">
-					<div class="card-header bg-transparent border-secondary-subtle py-2 d-flex align-items-center gap-2">
+				<div
+					class="card rounded-3 border border-secondary-subtle w-100 d-flex flex-column network-throughput-card overflow-hidden"
+					:style="throughputCardStyle"
+				>
+					<div class="card-header bg-transparent border-secondary-subtle py-2 d-flex align-items-center gap-2 flex-shrink-0">
 						<small class="text-muted mb-0">
 							<i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>
 							<LocaleText t="Network throughput (all interfaces, recent)"></LocaleText>
 						</small>
 					</div>
-					<div class="card-body pt-2 pb-3" style="min-height: 240px">
-						<Line
+					<div
+						class="card-body pt-2 pb-3 px-3 d-flex flex-column flex-grow-1 network-throughput-body"
+					>
+						<div
 							v-if="history.length >= 2"
-							:data="networkChartData"
-							:options="networkChartOptions"
-							style="width: 100%; height: 220px"
-						/>
-						<p v-else class="text-muted small mb-0 py-5 text-center">
+							class="network-throughput-chart-wrap"
+						>
+							<Line
+								:data="networkChartData"
+								:options="networkChartOptions"
+							/>
+						</div>
+						<p v-else class="text-muted small mb-0 py-5 text-center flex-grow-1 d-flex align-items-center justify-content-center">
 							<LocaleText t="Collecting samples…"></LocaleText>
 						</p>
 					</div>
 				</div>
 			</div>
 			<div class="col-lg-4">
-				<div class="card server-info-panel h-100 rounded-3 border border-secondary-subtle">
+				<div
+					ref="systemInfoCardRef"
+					class="card server-info-panel rounded-3 border border-secondary-subtle"
+				>
 					<div class="card-header bg-transparent border-secondary-subtle py-2 px-3">
 						<small class="text-body-secondary mb-0 fw-semibold">
 							<i class="bi bi-pc-display-horizontal me-1" aria-hidden="true"></i>
@@ -323,18 +464,19 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 					</div>
 					<div class="card-body px-3 py-3 d-flex flex-column">
 						<div class="si-metric mb-3">
-							<div class="d-flex justify-content-between align-items-baseline mb-1">
+							<div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
 								<span class="si-label text-body-secondary small">
 									<LocaleText t="CPU"></LocaleText>
 								</span>
-								<span class="si-value small fw-medium tabular-nums">{{ siCpuLabel }}</span>
+								<span class="si-value small fw-medium tabular-nums flex-shrink-0">{{ siCpuLabel }}</span>
 							</div>
-							<div class="si-track" role="presentation">
-								<div
-									class="si-fill si-fill-cpu"
-									:style="{ width: `${siCpuPct}%` }"
-								></div>
-							</div>
+							<p
+								v-if="cpuSubtitle"
+								class="si-cpu-detail small text-body-secondary mb-0"
+								:title="cpuSubtitle"
+							>
+								{{ cpuSubtitle }}
+							</p>
 						</div>
 						<div class="si-metric mb-3">
 							<div class="d-flex justify-content-between align-items-baseline mb-1">
@@ -343,11 +485,8 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 								</span>
 								<span class="si-value small fw-medium tabular-nums">{{ siMemLabel }}</span>
 							</div>
-							<div class="si-track" role="presentation">
-								<div
-									class="si-fill si-fill-mem"
-									:style="{ width: `${siMemPct}%` }"
-								></div>
+							<div class="si-detail-line small text-body-secondary tabular-nums">
+								{{ memGbLine }}
 							</div>
 						</div>
 						<div class="si-metric mb-3">
@@ -357,11 +496,14 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 								</span>
 								<span class="si-value small fw-medium tabular-nums">{{ siStorageLabel }}</span>
 							</div>
-							<div class="si-track" role="presentation">
-								<div
-									class="si-fill si-fill-storage"
-									:style="{ width: `${siStoragePct}%` }"
-								></div>
+							<div v-if="storageMountHint" class="text-muted small mb-1 font-monospace">
+								{{ storageMountHint }}
+							</div>
+							<div class="si-detail-line small text-body-secondary mb-1 tabular-nums">
+								{{ storageUsedLine }}
+							</div>
+							<div class="si-detail-line small text-body-secondary tabular-nums">
+								{{ storageFreeLine }}
 							</div>
 						</div>
 						<div class="si-metric mb-3">
@@ -371,27 +513,40 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 								</span>
 								<span class="si-value small fw-medium tabular-nums">{{ siSwapLabel }}</span>
 							</div>
-							<div class="si-track" role="presentation">
-								<div
-									class="si-fill si-fill-swap"
-									:style="{ width: `${siSwapPct}%` }"
-								></div>
+							<div class="si-detail-line small text-body-secondary tabular-nums">
+								{{ swapGbLine }}
 							</div>
 						</div>
 
-						<hr class="si-divider my-1 opacity-25" />
+						<hr class="si-divider my-2 opacity-25" />
 
-						<div class="d-flex justify-content-between align-items-baseline small mt-2">
+						<div class="d-flex justify-content-between align-items-baseline small">
 							<span class="text-body-secondary">
 								<LocaleText t="Server IP"></LocaleText>
 							</span>
 							<span class="text-body font-monospace text-break text-end ps-2">{{ serverIpDisplay }}</span>
 						</div>
-						<div class="d-flex justify-content-between align-items-baseline small mt-2 mb-0">
+						<div class="d-flex justify-content-between align-items-baseline small mt-2 mb-2">
 							<span class="text-body-secondary">
 								<LocaleText t="Uptime"></LocaleText>
 							</span>
 							<span class="si-uptime fw-semibold tabular-nums text-end ps-2">{{ uptimeFormatted }}</span>
+						</div>
+
+						<hr class="si-divider my-2 opacity-25" />
+
+						<div
+							v-for="row in runtimeRows"
+							:key="row.key"
+							class="d-flex justify-content-between align-items-start gap-2 small py-1"
+						>
+							<span class="text-body-secondary flex-shrink-0">
+								<LocaleText :t="row.labelKey"></LocaleText>
+							</span>
+							<span
+								class="text-body font-monospace text-break text-end rv-version"
+								:title="row.value"
+							>{{ row.value }}</span>
 						</div>
 					</div>
 				</div>
@@ -403,41 +558,30 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 <style scoped>
 .progress-bar {
 	width: 0;
-	transition: all 1s cubic-bezier(0.42, 0, 0.22, 1.0);
+	transition: all 1s cubic-bezier(0.42, 0, 0.22, 1);
 }
 
 .server-info-panel {
 	background: color-mix(in srgb, var(--bs-body-bg) 92%, var(--bs-secondary-color) 8%);
 }
 
-.si-track {
-	height: 5px;
-	border-radius: 3px;
-	background: color-mix(in srgb, var(--bs-body-color) 12%, transparent);
+.si-cpu-detail {
+	line-height: 1.3;
+	max-height: 3.9rem;
 	overflow: hidden;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	word-break: break-word;
 }
 
-.si-fill {
-	height: 100%;
-	border-radius: 3px;
-	width: 0;
-	transition: width 1s cubic-bezier(0.42, 0, 0.22, 1);
+.si-detail-line {
+	font-size: 0.78rem;
 }
 
-.si-fill-cpu {
-	background: #6b7280;
-}
-
-.si-fill-mem {
-	background: #22c55e;
-}
-
-.si-fill-storage {
-	background: #f97316;
-}
-
-.si-fill-swap {
-	background: #38bdf8;
+.rv-version {
+	font-size: 0.75rem;
+	max-width: 68%;
 }
 
 .si-divider {
@@ -454,5 +598,29 @@ const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 
 .tabular-nums {
 	font-variant-numeric: tabular-nums;
+}
+
+/* Chart fills card body; card outer height tracks System & Server Info (see throughputCardStyle). */
+.network-throughput-body {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.network-throughput-chart-wrap {
+	position: relative;
+	width: 100%;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.network-throughput-chart-wrap :deep(> div) {
+	height: 100%;
+	min-height: 0;
+}
+
+.network-throughput-chart-wrap :deep(canvas) {
+	max-width: 100%;
 }
 </style>

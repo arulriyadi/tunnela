@@ -253,5 +253,6 @@ Follows upstream **WGDashboard** licensing (see source headers; **Apache-2.0** p
 | [implementasi-nginx-gunicorn-socket.md](src/implementasi-nginx-gunicorn-socket.md) | Nginx + socket deployment. |
 | [WGDashboard-version-check-flow.txt](docs/WGDashboard-version-check-flow.txt) | GitHub release check + `update_github_repo` / env (reference). |
 | [Tunnela-fork-version-check-github.txt](docs/Tunnela-fork-version-check-github.txt) | Fork checklist for releases & GitHub. |
+| [UPDATE-v4.3.3.md](UPDATE-v4.3.3.md) | Release notes for v4.3.3 (features, files, build). |
 
 **TL;DR:** `cd src` → `./wgd.sh install` → `./wgd.sh start` → open `http://host:10086` → secure credentials and database.

@@ -12,7 +12,7 @@ Secara default, kode upstream memanggil:
 Jadi notifikasi "versi baru" di sidebar membandingkan versi LOKAL dengan
 rilis TERBARU repo WGDashboard (bukan fork Anda). Itu sebabnya bisa muncul
 "v4.3.3 available" sementara fork Anda masih menampilkan Current Version
-misalnya v4.3.2 — perilaku konsisten dengan desain upstream.
+misalnya v4.3.3 — perilaku konsisten dengan desain upstream.
 
 Kalau Anda ingin notifikasi update mengacu ke REPO FORK (mis. arulriyadi/tunnela),
 Anda perlu: (1) hal tertentu di GitHub, (2) perubahan/penyesuaian di kode &

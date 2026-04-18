@@ -28,7 +28,7 @@ WGDashboard — Alur pengecekan versi / update dari GitHub
 
   Dibandingkan di backend dengan konstanta Python:
 
-       modules/DashboardConfig.py  →  DashboardVersion = 'v4.3.3'
+       modules/DashboardConfig.py  →  DashboardVersion = 'v4.3.4'
 
   Perbandingan memakai packaging.version.parse(tag_name) vs parse(DashboardVersion).
 
@@ -49,7 +49,7 @@ WGDashboard — Alur pengecekan versi / update dari GitHub
   4) Diambil:  tag_name  dan  html_url
 
   5) Jika tag_name > DashboardVersion:
-        - Response sukses dengan pesan semisal "v4.3.3 is now available for update!"
+        - Response sukses dengan pesan semisal "v4.3.4 is now available for update!"
         - Field data berisi html_url (link halaman release).
 
      Jika tidak lebih baru:
@@ -132,7 +132,7 @@ WGDashboard — Alur pengecekan versi / update dari GitHub
   --- Persiapan di GitHub ---
 
   [ ] Repo sudah ada (bisa private; lihat catatan di bawah).
-  [ ] Ada GitHub Release dengan tag semver (mis. v4.3.3) — "latest" mengikuti
+  [ ] Ada GitHub Release dengan tag semver (mis. v4.3.4) — "latest" mengikuti
       release terbaru di GitHub.
   [ ] Tag release selaras dengan apa yang ingin kamu bandingkan ke
       DashboardVersion di kode saat kamu build/rilis.

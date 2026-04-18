@@ -1,6 +1,6 @@
 # WGDashboard — ringkasan struktur & sistem
 
-Dokumen ini merangkum isi repo [WGDashboard/WGDashboard](https://github.com/WGDashboard/WGDashboard) dari struktur folder sampai alur kode utama. Versi konfigurasi di kode mengacu ke `DashboardConfig.DashboardVersion` (saat ini **v4.3.3** di `modules/DashboardConfig.py`).
+Dokumen ini merangkum isi repo [WGDashboard/WGDashboard](https://github.com/WGDashboard/WGDashboard) dari struktur folder sampai alur kode utama. Versi konfigurasi di kode mengacu ke `DashboardConfig.DashboardVersion` (saat ini **v4.3.4** di `modules/DashboardConfig.py`).
 
 ---
 

@@ -336,6 +336,8 @@
 	"sysinfo storage used": "Terpakai",
 	"sysinfo storage free": "Bebas",
 	"sysinfo no swap": "Tidak ada swap",
+	"Hostname": "Nama host",
+	"Public IP": "IP publik",
 	"Uptime": "Uptime",
 	"TOTP verified!": "TOTP terverifikasi!",
 	"Table": "",

@@ -254,5 +254,6 @@ Follows upstream **WGDashboard** licensing (see source headers; **Apache-2.0** p
 | [WGDashboard-version-check-flow.txt](docs/WGDashboard-version-check-flow.txt) | GitHub release check + `update_github_repo` / env (reference). |
 | [Tunnela-fork-version-check-github.txt](docs/Tunnela-fork-version-check-github.txt) | Fork checklist for releases & GitHub. |
 | [UPDATE-v4.3.3.md](UPDATE-v4.3.3.md) | Release notes for v4.3.3 (features, files, build). |
+| [UPDATE-v4.3.4.md](UPDATE-v4.3.4.md) | Release notes for v4.3.4 (System & Server Info, API, locales). |
 
 **TL;DR:** `cd src` → `./wgd.sh install` → `./wgd.sh start` → open `http://host:10086` → secure credentials and database.

@@ -171,6 +171,17 @@ const serverIpDisplay = computed(() => {
 	return ip && String(ip).length > 0 ? ip : "—";
 });
 
+const hostnameDisplay = computed(() => {
+	const h = hostInfo.value?.hostname;
+	return h != null && String(h).trim().length > 0 ? String(h).trim() : "—";
+});
+
+/** Same value as Settings → Peer Default Settings → Peer Remote Endpoint (public reachability). */
+const publicEndpointDisplay = computed(() => {
+	const v = hostInfo.value?.peer_remote_endpoint;
+	return v != null && String(v).trim().length > 0 ? String(v).trim() : "—";
+});
+
 const uptimeFormatted = computed(() => {
 	const sec = hostInfo.value?.uptime_seconds;
 	if (sec == null || !Number.isFinite(Number(sec))) {
@@ -188,11 +199,6 @@ const siCpuPct = computed(() => {
 	return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
 });
 
-const siMemPct = computed(() => {
-	const n = Number(data.value?.Memory?.VirtualMemory?.percent);
-	return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
-});
-
 const siStoragePct = computed(() => {
 	const n = Number(
 		data.value?.Disks?.find((x) => x.mountPoint === "/")?.percent ??
@@ -207,9 +213,7 @@ const siSwapPct = computed(() => {
 });
 
 const siCpuLabel = computed(() => `${Math.round(siCpuPct.value)}%`);
-const siMemLabel = computed(() => `${Math.round(siMemPct.value)}%`);
 const siStorageLabel = computed(() => `${siStoragePct.value.toFixed(1)}%`);
-const siSwapLabel = computed(() => `${siSwapPct.value.toFixed(1)}%`);
 
 const fmtGB = (bytes) => {
 	if (bytes == null || !Number.isFinite(Number(bytes)) || Number(bytes) < 0) {
@@ -254,12 +258,36 @@ const cpuSubtitle = computed(() => {
 	return parts.join(" · ");
 });
 
-const memGbLine = computed(() => {
+/** Key–value panel: one value line (keeps CPU % + core/model). */
+const cpuKvValue = computed(() => {
+	const pct = siCpuLabel.value;
+	const sub = (cpuSubtitle.value || "").trim();
+	return sub ? `${pct} · ${sub}` : pct;
+});
+
+const memKvValue = computed(() => {
 	const m = data.value?.Memory?.VirtualMemory;
 	if (!m) {
 		return "—";
 	}
-	return fmtGBPair(m.used, m.total);
+	const pair = fmtGBPair(m.used, m.total);
+	if (pair === "—") {
+		return "—";
+	}
+	const p = Number(m.percent);
+	const pct = Number.isFinite(p) ? ` (${Math.round(p)}%)` : "";
+	return `${pair}${pct}`;
+});
+
+const swapKvValue = computed(() => {
+	const s = data.value?.Memory?.SwapMemory;
+	if (!s || !Number(s.total)) {
+		return GetLocale("sysinfo no swap");
+	}
+	const pair = fmtGBPair(s.used, s.total);
+	const p = siSwapPct.value;
+	const pct = Number.isFinite(p) ? ` (${p.toFixed(1)}%)` : "";
+	return `${pair}${pct}`;
 });
 
 const storageUsedLine = computed(() => {
@@ -291,14 +319,6 @@ const storageFreeLine = computed(() => {
 const storageMountHint = computed(() => {
 	const mp = rootDisk.value?.mountPoint;
 	return mp ? mp : "";
-});
-
-const swapGbLine = computed(() => {
-	const s = data.value?.Memory?.SwapMemory;
-	if (!s || !Number(s.total)) {
-		return GetLocale("sysinfo no swap");
-	}
-	return fmtGBPair(s.used, s.total);
 });
 
 const runtimeRows = computed(() => {
@@ -462,75 +482,102 @@ const runtimeRows = computed(() => {
 							<LocaleText t="System & Server Info"></LocaleText>
 						</small>
 					</div>
-					<div class="card-body px-3 py-3 d-flex flex-column">
-						<div class="si-metric mb-3">
-							<div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
-								<span class="si-label text-body-secondary small">
-									<LocaleText t="CPU"></LocaleText>
-								</span>
-								<span class="si-value small fw-medium tabular-nums flex-shrink-0">{{ siCpuLabel }}</span>
+					<div class="card-body px-3 py-3 d-flex flex-column si-kv-panel">
+						<div class="si-kv-row">
+							<div class="si-kv-label">
+								<LocaleText t="CPU"></LocaleText>
 							</div>
-							<p
-								v-if="cpuSubtitle"
-								class="si-cpu-detail small text-body-secondary mb-0"
-								:title="cpuSubtitle"
-							>
-								{{ cpuSubtitle }}
-							</p>
-						</div>
-						<div class="si-metric mb-3">
-							<div class="d-flex justify-content-between align-items-baseline mb-1">
-								<span class="si-label text-body-secondary small">
-									<LocaleText t="Memory"></LocaleText>
-								</span>
-								<span class="si-value small fw-medium tabular-nums">{{ siMemLabel }}</span>
-							</div>
-							<div class="si-detail-line small text-body-secondary tabular-nums">
-								{{ memGbLine }}
+							<div class="si-kv-value">
+								<span v-if="data" class="si-value-text tabular-nums" :title="cpuKvValue">{{
+									cpuKvValue
+								}}</span>
+								<span v-else class="spinner-border spinner-border-sm"></span>
 							</div>
 						</div>
-						<div class="si-metric mb-3">
-							<div class="d-flex justify-content-between align-items-baseline mb-1">
-								<span class="si-label text-body-secondary small">
-									<LocaleText t="Storage"></LocaleText>
-								</span>
-								<span class="si-value small fw-medium tabular-nums">{{ siStorageLabel }}</span>
+						<div class="si-kv-row">
+							<div class="si-kv-label">
+								<LocaleText t="Memory"></LocaleText>
 							</div>
-							<div v-if="storageMountHint" class="text-muted small mb-1 font-monospace">
-								{{ storageMountHint }}
-							</div>
-							<div class="si-detail-line small text-body-secondary mb-1 tabular-nums">
-								{{ storageUsedLine }}
-							</div>
-							<div class="si-detail-line small text-body-secondary tabular-nums">
-								{{ storageFreeLine }}
+							<div class="si-kv-value">
+								<span v-if="data" class="si-detail-line tabular-nums">{{ memKvValue }}</span>
+								<span v-else class="spinner-border spinner-border-sm"></span>
 							</div>
 						</div>
-						<div class="si-metric mb-3">
-							<div class="d-flex justify-content-between align-items-baseline mb-1">
-								<span class="si-label text-body-secondary small">
-									<LocaleText t="Swap Memory"></LocaleText>
-								</span>
-								<span class="si-value small fw-medium tabular-nums">{{ siSwapLabel }}</span>
+						<div class="si-kv-row si-kv-row--multiline">
+							<div class="si-kv-label">
+								<LocaleText t="Storage"></LocaleText>
 							</div>
-							<div class="si-detail-line small text-body-secondary tabular-nums">
-								{{ swapGbLine }}
+							<div class="si-kv-value">
+								<template v-if="data">
+									<div class="si-storage-head small text-body-secondary tabular-nums mb-1">
+										<span>{{ siStorageLabel }}%</span>
+										<span v-if="storageMountHint" class="font-monospace ms-1">{{ storageMountHint }}</span>
+									</div>
+									<div class="si-detail-line text-body-secondary mb-1 tabular-nums">
+										{{ storageUsedLine }}
+									</div>
+									<div class="si-detail-line text-body-secondary tabular-nums">
+										{{ storageFreeLine }}
+									</div>
+								</template>
+								<span v-else class="spinner-border spinner-border-sm"></span>
+							</div>
+						</div>
+						<div class="si-kv-row">
+							<div class="si-kv-label">
+								<LocaleText t="Swap Memory"></LocaleText>
+							</div>
+							<div class="si-kv-value">
+								<span v-if="data" class="si-detail-line tabular-nums">{{ swapKvValue }}</span>
+								<span v-else class="spinner-border spinner-border-sm"></span>
 							</div>
 						</div>
 
 						<hr class="si-divider my-2 opacity-25" />
 
-						<div class="d-flex justify-content-between align-items-baseline small">
-							<span class="text-body-secondary">
-								<LocaleText t="Server IP"></LocaleText>
-							</span>
-							<span class="text-body font-monospace text-break text-end ps-2">{{ serverIpDisplay }}</span>
+						<div class="si-kv-row">
+							<div class="si-kv-label">
+								<LocaleText t="Hostname"></LocaleText>
+							</div>
+							<div class="si-kv-value">
+								<span
+									v-if="data"
+									class="font-monospace text-break si-mono-value"
+									:title="hostnameDisplay"
+								>{{ hostnameDisplay }}</span>
+								<span v-else class="spinner-border spinner-border-sm"></span>
+							</div>
 						</div>
-						<div class="d-flex justify-content-between align-items-baseline small mt-2 mb-2">
-							<span class="text-body-secondary">
+						<div class="si-kv-row">
+							<div class="si-kv-label">
+								<LocaleText t="Public IP"></LocaleText>
+							</div>
+							<div class="si-kv-value">
+								<span
+									v-if="data"
+									class="font-monospace text-break si-mono-value"
+									:title="publicEndpointDisplay"
+								>{{ publicEndpointDisplay }}</span>
+								<span v-else class="spinner-border spinner-border-sm"></span>
+							</div>
+						</div>
+						<div class="si-kv-row">
+							<div class="si-kv-label">
+								<LocaleText t="Server IP"></LocaleText>
+							</div>
+							<div class="si-kv-value">
+								<span class="font-monospace text-break si-mono-value" :title="serverIpDisplay">{{
+									serverIpDisplay
+								}}</span>
+							</div>
+						</div>
+						<div class="si-kv-row">
+							<div class="si-kv-label">
 								<LocaleText t="Uptime"></LocaleText>
-							</span>
-							<span class="si-uptime fw-semibold tabular-nums text-end ps-2">{{ uptimeFormatted }}</span>
+							</div>
+							<div class="si-kv-value">
+								<span class="si-uptime fw-semibold tabular-nums">{{ uptimeFormatted }}</span>
+							</div>
 						</div>
 
 						<hr class="si-divider my-2 opacity-25" />
@@ -538,15 +585,17 @@ const runtimeRows = computed(() => {
 						<div
 							v-for="row in runtimeRows"
 							:key="row.key"
-							class="d-flex justify-content-between align-items-start gap-2 small py-1"
+							class="si-kv-row si-kv-row--tight"
 						>
-							<span class="text-body-secondary flex-shrink-0">
+							<div class="si-kv-label">
 								<LocaleText :t="row.labelKey"></LocaleText>
-							</span>
-							<span
-								class="text-body font-monospace text-break text-end rv-version"
-								:title="row.value"
-							>{{ row.value }}</span>
+							</div>
+							<div class="si-kv-value">
+								<span
+									class="font-monospace text-break si-mono-value rv-version"
+									:title="row.value"
+								>{{ row.value }}</span>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -565,23 +614,62 @@ const runtimeRows = computed(() => {
 	background: color-mix(in srgb, var(--bs-body-bg) 92%, var(--bs-secondary-color) 8%);
 }
 
-.si-cpu-detail {
-	line-height: 1.3;
-	max-height: 3.9rem;
-	overflow: hidden;
-	display: -webkit-box;
-	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 3;
+.si-kv-panel {
+	gap: 0;
+	font-size: 0.875rem;
+}
+
+.si-kv-row {
+	display: grid;
+	grid-template-columns: minmax(7.25rem, 40%) 1fr;
+	column-gap: 0.65rem;
+	align-items: start;
+	padding: 0.35rem 0;
+}
+
+.si-kv-row--multiline .si-kv-label {
+	padding-top: 0.15rem;
+}
+
+.si-kv-row--tight {
+	padding: 0.2rem 0;
+}
+
+.si-kv-label {
+	text-align: right;
+	color: var(--bs-secondary-color);
+	font-size: 0.8125rem;
+	line-height: 1.35;
+	min-width: 0;
+}
+
+.si-kv-value {
+	text-align: left;
+	color: var(--bs-body-color);
+	font-size: 0.875rem;
+	line-height: 1.4;
+	min-width: 0;
 	word-break: break-word;
 }
 
+.si-value-text {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 4;
+	overflow: hidden;
+	line-height: 1.35;
+}
+
+.si-mono-value {
+	font-size: 0.8125rem;
+}
+
 .si-detail-line {
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 }
 
 .rv-version {
 	font-size: 0.75rem;
-	max-width: 68%;
 }
 
 .si-divider {

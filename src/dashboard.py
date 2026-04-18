@@ -1,5 +1,5 @@
 import logging
-import random, shutil, sqlite3, configparser, hashlib, ipaddress, json, os, secrets, stat, subprocess, shlex
+import random, shutil, sqlite3, configparser, hashlib, ipaddress, json, os, secrets, socket, stat, subprocess, shlex
 import time, re, uuid, bcrypt, psutil, pyotp, threading
 import traceback
 from uuid import uuid4
@@ -2267,7 +2267,18 @@ def API_Email_PreviewBody():
 
 @app.get(f'{APP_PREFIX}/api/systemStatus')
 def API_SystemStatus():
-    return ResponseObject(data=SystemStatus)
+    body = SystemStatus.toJson()
+    host = body.get("Host")
+    if isinstance(host, dict):
+        try:
+            host["hostname"] = (socket.gethostname() or "").strip()
+        except OSError:
+            host["hostname"] = ""
+        _ok, ep = DashboardConfig.GetConfig("Peers", "remote_endpoint")
+        host["peer_remote_endpoint"] = (
+            str(ep).strip() if _ok and ep is not None and str(ep).strip() else ""
+        )
+    return ResponseObject(data=body)
 
 @app.get(f'{APP_PREFIX}/api/protocolsEnabled')
 def API_ProtocolsEnabled():

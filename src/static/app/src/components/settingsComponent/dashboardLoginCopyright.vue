@@ -32,7 +32,7 @@ export default {
 		},
 		versionPreview() {
 			const v = this.store.Configuration?.Server?.version;
-			return v != null && String(v) !== "" ? String(v) : "v4.3.3";
+			return v != null && String(v) !== "" ? String(v) : "v4.3.4";
 		},
 		previewLine() {
 			return (this.textDraft || "").replace(/\{version\}/g, this.versionPreview);

@@ -1,85 +1,89 @@
 # Tunnela
 
-**Tunnela** adalah fork / distribusi [WGDashboard](https://github.com/WGDashboard/WGDashboard) dengan penyesuaian untuk deployment (misalnya **Nginx + Unix socket**), dokumentasi instalasi dalam bahasa Indonesia, dan panduan operasional tambahan di folder `src/`.
+A production-oriented [WGDashboard](https://github.com/WGDashboard/WGDashboard) fork with deployment-focused additions (Nginx + Gunicorn Unix socket, extended docs, and UI tweaks). It provides a **web UI** to manage **WireGuard** interfaces, peers, QR configs, and related operations.
 
-Dashboard ini dipakai untuk **mengelola antarmuka WireGuard** (peer, QR code, konfigurasi, dan lain-lain) lewat **browser**.
-
----
-
-## Isi dokumen ini
-
-1. [Apa yang perlu disiapkan](#apa-yang-perlu-disiapkan-sebelum-mulai)  
-2. [Mengunduh kode (clone)](#1-mengunduh-kode-dari-github)  
-3. [Instalasi otomatis dengan `wgd.sh`](#2-instalasi-otomatis)  
-4. [Menyalakan & mengakses dashboard](#3-menyalakan-dashboard)  
-5. [File konfigurasi (`wg-dashboard.ini` dan lainnya)](#4-konfigurasi-file)  
-6. [Opsional: Nginx, database, build UI](#5-opsional-lanjutan)  
-7. [Masalah umum](#6-masalah-umum)  
-8. [Lisensi](#lisensi)
-
-Panduan **lebih detail** (alur, checklist, penjelasan tiap bagian `wg-dashboard.ini`): **[src/install-step-by-step.md](src/install-step-by-step.md)**.
+Indonesian step-by-step guides live under [`src/install-step-by-step.md`](src/install-step-by-step.md) and related `implementasi-*.md` files.
 
 ---
 
-## Apa yang perlu disiapkan sebelum mulai
+## Architecture
 
-| Kebutuhan | Penjelasan singkat |
-|-----------|---------------------|
-| **Server atau VM Linux** | Misalnya Ubuntu/Debian (disarankan). Script `wgd.sh` juga mendukung beberapa distro lain; lihat pesan error jika OS tidak didukung. |
-| **Akses administrator (`sudo`)** | Diperlukan untuk menginstal paket Python, WireGuard, dan saat menjalankan proses dashboard (Gunicorn). |
-| **Koneksi internet** | Untuk mengunduh dependensi Python dari internet (PyPI). Saat install, script bisa menawarkan **mirror** jika koneksi ke pypi.org lambat. |
-| **Python 3.10, 3.11, atau 3.12** | Boleh diinstal dulu atau dibiarkan — script `install` bisa membantu menginstalnya di sistem yang didukung. |
+```
+Browser  →  [ Nginx ]  →  Gunicorn (TCP or Unix socket)  →  Flask (dashboard.py)
+                ↓                                              ↓
+           TLS / HTTP                                   SQLAlchemy → SQLite | PostgreSQL | MySQL
+                                                               ↓
+                                                         wg / wg-quick (host)
+```
 
-**Tidak wajib di awal:** mengedit file konfigurasi secara manual, memasang Nginx, atau memasang PostgreSQL. Secara default aplikasi bisa **jalan dulu** dengan SQLite dan folder `db/` dibuat otomatis.
+| Layer | Responsibility |
+|-------|------------------|
+| **Reverse proxy** (optional) | TLS termination, HTTP(S) to users; `proxy_pass` to Gunicorn when using Unix socket mode. |
+| **Gunicorn** | WSGI server; binds `app_ip:app_port` (direct) or Unix socket (`nginx_socket`). |
+| **Flask app** (`dashboard.py`) | HTTP API, sessions, orchestration; loads `modules/*` services. |
+| **Domain modules** | WireGuard / AmneziaWG config, peers, clients, jobs, OIDC, plugins — business logic. |
+| **Persistence** | SQLAlchemy engines per logical DB name (`wgdashboard`, `wgdashboard_job`, `wgdashboard_log` for PostgreSQL). |
+| **Host OS** | WireGuard tools, `/etc/wireguard`, optional systemd unit for restarts from UI. |
 
 ---
 
-## 1. Mengunduh kode dari GitHub
+## Project structure
 
-**Pilih salah satu cara.**
+```
+tunnela/
+├── README.md
+├── SUMMARY.md
+├── templates/
+│   └── wg-dashboard.ini.template    # Reference INI (no secrets)
+└── src/
+    ├── dashboard.py                 # Flask app entry
+    ├── gunicorn.conf.py
+    ├── wgd.sh                       # install | start | stop | restart | debug
+    ├── requirements.txt
+    ├── modules/                     # Core Python packages (config, WG, clients, …)
+    ├── static/
+    │   ├── app/                     # Vue admin UI (source)
+    │   └── dist/                    # Built admin/client assets (prebuilt in repo)
+    ├── locales/
+    ├── install-step-by-step.md
+    ├── implementasi-nginx-gunicorn-socket.md
+    ├── sudoers.wgdashboard.example
+    └── wg-dashboard.service         # Example systemd unit
+```
 
-### A. Unduh dengan HTTPS (paling sederhana)
+Runtime paths (created locally, not committed): `venv/`, `db/`, `log/`, `wg-dashboard.ini`, `run/` (socket parent), etc. See [`.gitignore`](.gitignore).
+
+---
+
+## Quick start
+
+### Prerequisites
+
+| Requirement | Notes |
+|-------------|--------|
+| **Linux** | Debian/Ubuntu, RHEL family, Alpine (experimental), Arch — as supported by `wgd.sh`. |
+| **Python** | **3.10, 3.11, or 3.12** (enforced by installer). |
+| **sudo** | Used for package install, `/etc/wireguard`, and Gunicorn lifecycle in default setup. |
+| **Network** | Outbound HTTPS for PyPI during `./wgd.sh install`. |
+| **WireGuard** | Installed by the script if missing (`wg`, `wg-quick`). |
+
+Optional: **PostgreSQL** or **MySQL** for production (see [Database](#database-postgresql)); **Node.js** only if you rebuild the Vue admin (`static/app`).
+
+### 1. Clone
 
 ```bash
 git clone https://github.com/arulriyadi/tunnela.git
 cd tunnela
 ```
 
-Jika diminta login saat `git push` nanti, GitHub memakai **Personal Access Token** (bukan password akun).
-
-### B. Unduh dengan SSH (jika Anda sudah punya kunci SSH di GitHub)
-
-1. Pastikan **kunci publik** sudah ditambahkan di GitHub: **Settings → SSH and GPG keys**.  
-2. **Kunci privat** hanya disimpan di mesin Anda; jangan dibagikan atau di-commit ke repo.
+SSH:
 
 ```bash
 git clone git@github.com:arulriyadi/tunnela.git
 cd tunnela
 ```
 
-Jika kunci tidak di lokasi default, Anda bisa pakai **SSH config** (`~/.ssh/config`), contoh:
-
-```text
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile /path/ke/private-key-anda
-  IdentitiesOnly yes
-```
-
-**Izin file kunci privat:** agar SSH mau memakainya, biasanya:
-
-```bash
-chmod 600 /path/ke/private-key-anda
-```
-
-Struktur folder setelah clone: kode aplikasi utama ada di **`src/`** (di dalamnya ada `wgd.sh`, `dashboard.py`, dll.).
-
----
-
-## 2. Instalasi otomatis
-
-Semua perintah di bawah dijalankan dari folder **`src/`** (bukan dari root repo `tunnela/`).
+### 2. Install (from `src/`)
 
 ```bash
 cd src
@@ -87,101 +91,141 @@ chmod +x wgd.sh
 ./wgd.sh install
 ```
 
-**Apa yang terjadi saat `install` (secara garis besar)?**
+Logs: `src/log/install.txt`.
 
-- Membuat folder kerja seperti `log/`, `download/`, `db/` jika belum ada.  
-- Membuat **virtual environment** Python (`venv/`) dan menginstal paket dari `requirements.txt`.  
-- Membantu menginstal **WireGuard tools** jika belum ada di sistem.  
-- Menyiapkan file `ssl-tls.ini` kosong jika diperlukan.
-
-Jika ada **error**, buka **`log/install.txt`** untuk detail.
-
-**Setelah `install` selesai tanpa error**, lanjut ke langkah berikutnya.
-
----
-
-## 3. Menyalakan dashboard
-
-Masih di folder **`src/`**:
+### 3. Run
 
 ```bash
 ./wgd.sh start
 ```
 
-**Perintah lain yang berguna:**
+Default UI URL: `http://<host>:10086` (adjust `app_port` in `wg-dashboard.ini` → `[Server]`).
 
-| Perintah | Fungsi |
-|----------|--------|
-| `./wgd.sh stop` | Menghentikan dashboard. |
-| `./wgd.sh restart` | Menghentikan lalu menyalakan lagi. |
-| `./wgd.sh debug` | Menjalankan di foreground (cocok untuk debugging). |
+### 4. First login
 
-**Pertama kali start**, aplikasi akan membuat atau melengkapi **`wg-dashboard.ini`** (nama bagian seperti `[Server]`, `[Account]`, dll.) dengan nilai default jika belum ada.
-
-### Buka di browser
-
-- Secara default dashboard mendengarkan **TCP** pada **`app_port`** di `wg-dashboard.ini` (sering **10086**).  
-- Buka alamat: `http://IP-SERVER-ANDA:10086` (sesuaikan IP dan port).  
-- Jika Anda memakai **Nginx + Unix socket**, ikuti **[src/implementasi-nginx-gunicorn-socket.md](src/implementasi-nginx-gunicorn-socket.md)** dan port **HTTP/HTTPS** mengikuti konfigurasi Nginx.
-
-**Login pertama:** gunakan akun default yang dijelaskan di dokumentasi WGDashboard / template, lalu **ganti password** lewat pengaturan di dashboard.
+Change the default admin password after first sign-in. Use [`templates/wg-dashboard.ini.template`](templates/wg-dashboard.ini.template) as a reference; local `wg-dashboard.ini` is gitignored.
 
 ---
 
-## 4. Konfigurasi file
+## `wgd.sh` commands
 
-### `wg-dashboard.ini` (utama)
-
-- **Boleh tidak diedit manual di awal** — banyak nilai diisi otomatis saat pertama kali start.  
-- **Contoh lengkap** untuk referensi: **[templates/wg-dashboard.ini.template](templates/wg-dashboard.ini.template)**.  
-- Untuk menyalin manual: salin template ke `src/wg-dashboard.ini` lalu sesuaikan (path WireGuard, port, timezone, mode listen `direct` vs `nginx_socket`, dll.).
-
-### TLS / Certbot (opsional)
-
-Hanya jika Anda memakai SSL/TLS atau Certbot sesuai fitur yang ada di proyek:
-
-- Salin **`src/ssl-tls.ini.example`** → **`src/ssl-tls.ini`**  
-- Salin **`src/certbot.ini.example`** → **`src/certbot.ini`**  
-- Isi sesuai kebutuhan server Anda.
-
-### Catatan keamanan repo
-
-File seperti `wg-dashboard.ini` yang berisi **password** atau **data sensitif** **tidak** ikut di GitHub (diatur di **`.gitignore`**). Gunakan **template** dan **file `.example`** sebagai acuan.
-
-### Konfigurasi di folder lain (opsional)
-
-Jika Anda ingin **memisahkan** data dan konfigurasi dari folder `src/`, bisa memakai variabel lingkungan **`CONFIGURATION_PATH`** (penjelasan ada di **[src/install-step-by-step.md](src/install-step-by-step.md)**).
+| Command | Description |
+|---------|-------------|
+| `./wgd.sh install` | Create venv, install `requirements.txt`, WireGuard tools, initial folders. |
+| `./wgd.sh start` | Start Gunicorn in background. |
+| `./wgd.sh stop` | Stop Gunicorn. |
+| `./wgd.sh restart` | Stop then start. |
+| `./wgd.sh debug` | Run Flask app in foreground (development). |
+| `./wgd.sh update` | Update flow (upstream WGDashboard style; review before use on a fork). |
 
 ---
 
-## 5. Opsional (lanjutan)
+## Environment variables
 
-| Topik | Dokumen / catatan |
-|--------|-------------------|
-| **Nginx + socket Gunicorn** | [src/implementasi-nginx-gunicorn-socket.md](src/implementasi-nginx-gunicorn-socket.md) |
-| **PostgreSQL / MySQL** | Isi bagian `[Database]` di `wg-dashboard.ini`; siapkan server DB dan user. Detail di `install-step-by-step.md`. |
-| **Build ulang tampilan (Vue)** | `cd src/static/app` → `npm ci` atau `npm install` → `npm run build`. Repo ini sudah menyertakan hasil build di `src/static/dist` sehingga **tidak wajib** build untuk sekadar menjalankan dashboard. |
-| **Izin `sudo` untuk deploy Nginx dari UI** | Lihat contoh [src/sudoers.wgdashboard.example](src/sudoers.wgdashboard.example) (sesuaikan user dan path). |
-
----
-
-## 6. Masalah umum
-
-| Gejala | Yang bisa dicek |
-|--------|------------------|
-| `install` gagal | Baca **`src/log/install.txt`**, pastikan **Python 3.10+** dan **sudo** tersedia. |
-| Tidak bisa buka di browser | Cek firewall (buka port `app_port`), IP/URL yang benar, dan apakah `./wgd.sh start` sukses. |
-| Ingin reset konfigurasi | **Hati-hati:** backup dulu. Sesuaikan dengan dokumentasi WGDashboard; jangan hapus file DB sembarangan jika ada data produksi. |
-| `git push` ditolak | Pastikan remote SSH/HTTPS benar, token/SSH key untuk GitHub, dan Anda punya akses ke repo. |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CONFIGURATION_PATH` | *(unset → `.`)* | Base path for `wg-dashboard.ini`, `db/`, `run/`, Lets Encrypt paths used by scripts. |
+| `WGDASHBOARD_SYSTEMD_UNIT` | *(optional)* | Overrides `[Server] systemd_unit` for “restart service” from UI. |
+| `ENVIRONMENT` | `develop` | Used by `wgd.sh` (e.g. certbot paths behavior). |
 
 ---
 
-## Lisensi
+## Configuration files
 
-Mengikuti lisensi proyek hulu (**WGDashboard**; header sumber mengacu ke **Apache-2.0** dan pihak pengembang asli).
+| File | Purpose |
+|------|---------|
+| `src/wg-dashboard.ini` | Main app config (`[Server]`, `[Database]`, `[Account]`, …). Created/merged on first start. |
+| `src/ssl-tls.ini` | TLS cert paths (optional). Copy from `ssl-tls.ini.example`. |
+| `src/certbot.ini` | Certbot settings (optional). Copy from `certbot.ini.example`. |
+
+Secrets must **not** be committed; use templates and `.example` files.
 
 ---
 
-**Ringkas:** clone → `cd src` → `chmod +x wgd.sh` → `./wgd.sh install` → `./wgd.sh start` → buka browser → sesuaikan konfigurasi dan keamanan.  
+## Database (PostgreSQL)
 
-**Detail & checklist:** [src/install-step-by-step.md](src/install-step-by-step.md).
+If `[Database] type = postgresql`, the app expects **three** logical databases (auto-created if the DB role has `CREATEDB`, or create them manually):
+
+| Database | Role |
+|----------|------|
+| `wgdashboard` | Primary app data |
+| `wgdashboard_job` | Peer jobs |
+| `wgdashboard_log` | Dashboard logging |
+
+Grant `CREATEDB` to the application role, or pre-create all three and assign ownership. See discussion in project docs if you see `permission denied to create database`.
+
+---
+
+## API surface (overview)
+
+The Flask app mounts routes under a configurable **`app_prefix`** (often empty). Typical patterns:
+
+| Area | Pattern | Auth |
+|------|---------|------|
+| UI + JSON API | `GET/POST {APP_PREFIX}/api/...` | Session / API key / OIDC per route |
+| Static admin | `GET {APP_PREFIX}/...` | Served after login as configured |
+
+For a full list, inspect `dashboard.py` and route decorators. There is no separate OpenAPI file in-tree.
+
+---
+
+## Nginx & Unix socket
+
+To put Tunnela behind Nginx with a Unix socket, set in `wg-dashboard.ini`:
+
+- `app_listen_mode = nginx_socket`
+- `gunicorn_socket_path` = absolute path to the `.sock` file
+
+See **[src/implementasi-nginx-gunicorn-socket.md](src/implementasi-nginx-gunicorn-socket.md)** and **[src/sudoers.wgdashboard.example](src/sudoers.wgdashboard.example)** for deploy and passwordless `sudo` when the process is not root.
+
+---
+
+## Rebuild admin UI (optional)
+
+```bash
+cd src/static/app
+npm ci   # or npm install
+npm run build
+```
+
+Committed `src/static/dist` allows running without Node for production reads.
+
+---
+
+## Design decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **Monolithic Flask app** | Matches upstream WGDashboard; single process model with clear `modules/` boundaries. |
+| **INI + env for config** | No mandatory `.env` in repo; `wg-dashboard.ini` is the source of truth for operators. |
+| **Multiple SQL databases (names)** | Jobs and logs separated from core schema; SQLite uses files under `db/`. |
+| **Prebuilt `static/dist`** | Faster deployment on servers without frontend toolchain. |
+| **Fork-specific docs in `src/`** | Operational runbooks (Nginx, install) stay next to the code. |
+
+---
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|--------|
+| Install fails | `src/log/install.txt`, Python version, sudo, connectivity to PyPI. |
+| PostgreSQL `CREATE DATABASE` denied | Role needs `CREATEDB` or pre-create `wgdashboard`, `wgdashboard_job`, `wgdashboard_log`. |
+| Cannot open in browser | Firewall, `app_ip` / `app_port`, Gunicorn actually listening. |
+| Nginx deploy from UI fails | Process user, `sudoers` entries, paths in `sudoers.wgdashboard.example`. |
+
+---
+
+## License
+
+Follows upstream **WGDashboard** licensing (see source headers; **Apache-2.0** per upstream).
+
+---
+
+## Links
+
+| Doc | Description |
+|-----|-------------|
+| [install-step-by-step.md](src/install-step-by-step.md) | Checklist, flow, INI sections (Indonesian). |
+| [implementasi-nginx-gunicorn-socket.md](src/implementasi-nginx-gunicorn-socket.md) | Nginx + socket deployment. |
+
+**TL;DR:** `cd src` → `./wgd.sh install` → `./wgd.sh start` → open `http://host:10086` → secure credentials and database.

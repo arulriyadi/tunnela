@@ -51,8 +51,8 @@ class DashboardConfig:
                 "dashboard_language": "en-US",
                 "clients_statistics_interval": "300000",
                 "dashboard_timezone": "Etc/UTC",
-                "login_copyright_text": "Tunnela {version} | Developed with \u2764\ufe0f by Donald Zou",
-                "login_copyright_url": "https://github.com/donaldzou",
+                "login_copyright_text": "Tunnela {version} | Developed with \u2764\ufe0f by arulriyadi",
+                "login_copyright_url": "https://github.com/arulriyadi/tunnela",
                 # Gunicorn bind: direct = TCP (app_ip:app_port); nginx_socket = Unix socket for Nginx reverse proxy (Fase 0+).
                 "app_listen_mode": "direct",
                 "gunicorn_socket_path": os.path.join(
@@ -62,7 +62,7 @@ class DashboardConfig:
                 "systemd_unit": "",
                 # GitHub owner/repo for /api/getDashboardUpdate and wgd.sh update (releases/latest + git pull).
                 # Override with env WGDASHBOARD_UPDATE_GITHUB_REPO if set.
-                "update_github_repo": "WGDashboard/WGDashboard",
+                "update_github_repo": "arulriyadi/tunnela",
             },
             "Peers": {
                 "peer_global_DNS": "1.1.1.1",

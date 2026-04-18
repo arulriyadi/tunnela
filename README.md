@@ -6,6 +6,18 @@ Indonesian step-by-step guides live under [`src/install-step-by-step.md`](src/in
 
 ---
 
+## Screenshots
+
+**Home — WireGuard overview** — interface/peer summary, cumulative traffic, **system status** (CPU, memory, storage, swap), **network throughput** chart (all interfaces), server info, and **network flow** (peers → tunnels → Internet).
+
+![Home — WireGuard overview with system status, throughput chart, and network flow](docs/screenshots/home-wireguard-overview.png)
+
+**Clients — list management** — 24h network overview, per-configuration traffic table, aggregate traffic snapshot, and searchable peer list with per-peer stats.
+
+![Clients — network overview and peer list](docs/screenshots/clients-list-management.png)
+
+---
+
 ## Architecture
 
 ```

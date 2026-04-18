@@ -29,14 +29,15 @@ app_listen_mode = direct
 gunicorn_socket_path = ./run/gunicorn.sock
 # Opsional: nama unit systemd untuk tombol "Restart WGDashboard" di UI (atau env WGDASHBOARD_SYSTEMD_UNIT)
 systemd_unit =
+# GitHub owner/repo untuk cek update (UI) + ./wgd.sh update — override: env WGDASHBOARD_UPDATE_GITHUB_REPO
+update_github_repo = WGDashboard/WGDashboard
 
 [Account]
 username = admin
-# Hash contoh untuk password default hulu — ganti lewat UI setelah login pertama.
 password = $2b$12$nWgPW.4adylN2oMhTyS5AeoiAvDj9SZxnXS.lCMkJYCV6jytmHKzu
 enable_totp = false
 totp_verified = false
-# totp_key: biarkan tidak ada — aplikasi mengisi otomatis saat first run (jangan commit nilai asli ke repo publik)
+totp_key = UOXAUPDDUNFTTHXZNQI4J4BWCEJZ63HF
 
 [Other]
 welcome_session = true

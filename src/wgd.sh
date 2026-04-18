@@ -542,6 +542,25 @@ start_wgd_debug() {
 	sudo "$venv_python" "$app_name"
 }
 
+# GitHub owner/repo for releases/latest + git pull (override: env WGDASHBOARD_UPDATE_GITHUB_REPO).
+_read_update_github_repo() {
+	if [ -n "${WGDASHBOARD_UPDATE_GITHUB_REPO:-}" ]; then
+		printf '%s' "${WGDASHBOARD_UPDATE_GITHUB_REPO}"
+		return
+	fi
+	_cfg=""
+	if [ -n "${CONFIGURATION_PATH:-}" ] && [ -f "${CONFIGURATION_PATH}/wg-dashboard.ini" ]; then
+		_cfg="${CONFIGURATION_PATH}/wg-dashboard.ini"
+	elif [ -f ./wg-dashboard.ini ]; then
+		_cfg="./wg-dashboard.ini"
+	fi
+	if [ -n "$_cfg" ]; then
+		WGD_INI_PATH="$_cfg" "$venv_python" -c "import configparser, os; c=configparser.ConfigParser(); c.read(os.environ['WGD_INI_PATH']); print(c.get('Server','update_github_repo',fallback='WGDashboard/WGDashboard').strip())" 2>/dev/null || printf 'WGDashboard/WGDashboard'
+	else
+		printf 'WGDashboard/WGDashboard'
+	fi
+}
+
 update_wgd() {
 	_determineOS
 	if ! python3 --version > /dev/null 2>&1
@@ -556,7 +575,9 @@ update_wgd() {
 	_installPythonVenv
 	_installPythonPip	
 	
-	new_ver=$($venv_python -c "import json; import urllib.request; data = urllib.request.urlopen('https://api.github.com/repos/WGDashboard/WGDashboard/releases/latest').read(); output = json.loads(data);print(output['tag_name'])")
+	update_github_repo=$(_read_update_github_repo)
+	export WGD_GITHUB_REPO="${update_github_repo}"
+	new_ver=$($venv_python -c "import json, os, urllib.request; r=os.environ['WGD_GITHUB_REPO']; data = urllib.request.urlopen('https://api.github.com/repos/' + r + '/releases/latest').read(); print(json.loads(data)['tag_name'])")
 
 	if [ "$commandConfirmed" = "true" ]; then
 		printf "[WGDashboard] Confirmation granted.\n"
@@ -575,7 +596,7 @@ update_wgd() {
 
 		mv wgd.sh wgd.sh.old
 		printf "[WGDashboard] Downloading %s from GitHub..." "$new_ver"
-		{ date; git stash; git pull https://github.com/WGDashboard/WGDashboard.git $new_ver --force; } >> ./log/update.txt
+		{ date; git stash; git pull "https://github.com/${update_github_repo}.git" $new_ver --force; } >> ./log/update.txt
 		chmod +x ./wgd.sh
 		sudo ./wgd.sh install
 		printf "[WGDashboard] Update completed!\n"

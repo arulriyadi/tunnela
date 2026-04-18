@@ -1,0 +1,123 @@
+================================================================================
+Tunnela / fork WGDashboard — Apa yang dibutuhkan di GitHub untuk cek versi release
+(Dokumen bacaan; melengkapi WGDashboard-version-check-flow.txt)
+================================================================================
+
+KONTEKS
+--------------------------------------------------------------------------------
+Secara default, kode upstream memanggil:
+
+  https://api.github.com/repos/WGDashboard/WGDashboard/releases/latest
+
+Jadi notifikasi "versi baru" di sidebar membandingkan versi LOKAL dengan
+rilis TERBARU repo WGDashboard (bukan fork Anda). Itu sebabnya bisa muncul
+"v4.3.3 available" sementara fork Anda masih menampilkan Current Version
+misalnya v4.3.2 — perilaku konsisten dengan desain upstream.
+
+Kalau Anda ingin notifikasi update mengacu ke REPO FORK (mis. arulriyadi/tunnela),
+Anda perlu: (1) hal tertentu di GitHub, (2) perubahan/penyesuaian di kode &
+skrip (lihat bagian akhir).
+
+
+================================================================================
+1. YANG DIBUTUHKAN DI SISI GITHUB (repo fork / Tunnela)
+================================================================================
+
+A) GitHub Releases
+   - Buat minimal satu RELEASE (bukan cuma git tag lokal tanpa release page,
+     kecuali Anda yakin workflow Anda cocok — untuk API "releases/latest"
+     yang umum dipakai, yang diperlukan adalah objek Release di GitHub).
+
+   - Saat membuat release, isi TAG (contoh: v1.0.0 atau v4.4.0-tunnela.1).
+     Kode membaca field JSON: tag_name
+
+   - Field html_url dipakai sebagai link "buka halaman release" di UI.
+
+B) Repo publik vs private
+   - Repo PUBLIK: API releases/latest biasanya bisa diakses tanpa token dari
+     server yang menjalankan dashboard (sesuai rate limit GitHub).
+
+   - Repo PRIVATE: akses API biasanya butuh autentikasi. Kode saat ini
+     (urllib tanpa header Authorization) belum mengirim token — cek update dari
+     UI bisa gagal sampai kode ditambah (token read-only / GitHub App, dll.).
+
+C) Penamaan tag (semver)
+   - Backend membandingkan dengan packaging.version.parse(tag_name) vs
+     DashboardVersion di DashboardConfig.py.
+   - Gunakan pola konsisten, mis. v1.2.3 — hindari tag yang tidak bisa
+     diparsing sebagai versi jika Anda ingin perbandingan andal.
+
+D) Rate limit API GitHub (tanpa auth)
+   - Sekitar 60 request/jam per alamat IP ke API untuk request tanpa token.
+   - Satu user membuka UI = satu kali pemanggilan getDashboardUpdate saat
+     navbar mount — biasanya tidak masalah.
+
+E) Tanpa release di repo fork
+   - Jika belum ada release sama sekali, endpoint releases/latest bisa error
+     atau tidak sesuai harapan → UI bisa menampilkan gagal cek update atau
+     tidak ada notifikasi versi baru untuk fork Anda.
+
+
+================================================================================
+2. YANG HARUS SELARAS DI KODE / OPERASI (bukan hanya GitHub)
+================================================================================
+
+A) Versi lokal
+   - DashboardVersion di modules/DashboardConfig.py
+   - Dan/atau [Server] version di wg-dashboard.ini (diset saat runtime)
+   Harus mencerminkan versi "produk" fork Anda agar pesan "ada pembaruan"
+   masuk akal dibanding tag di GitHub.
+
+B) URL API di backend
+   - Ganti owner/repo dari WGDashboard/WGDashboard menjadi mis.:
+     arulriyadi/tunnela
+   - Endpoint tetap: .../releases/latest
+   - Lokasi kode: dashboard.py → API_getDashboardUpdate
+
+C) Skrip wgd.sh update (opsional tapi disarankan selaras)
+   - Perintah update saat ini mengambil tag dari upstream dan git pull dari
+     repo WGDashboard. Jika UI sudah menunjuk ke Tunnela, idealnya alur
+     update CLI juga mengarah ke repo/tag Tunnela agar tidak membingungkan
+     operator.
+
+D) Opsi lanjutan
+   - Dua sumber (upstream + fork): butuh desain tambahan (dua API call atau
+     endpoint agregat custom).
+   - Menonaktifkan cek versi: bisa dengan menghapus/mematikan pemanggilan
+     getDashboardUpdate (hanya untuk kebutuhan internal).
+
+
+================================================================================
+3. RINGKASAN CHECKLIST
+================================================================================
+
+  [ ] Di GitHub: buat Release + tag semver di repo Tunnela (publik, atau
+      siapkan auth jika private).
+
+  [ ] Di kode: samakan DashboardVersion / version string dengan kebijakan
+      rilis Anda.
+
+  [ ] Di kode: ubah URL api.github.com/repos/OWNER/REPO/releases/latest ke
+      repo fork.
+
+  [ ] (Disarankan) Sesuaikan wgd.sh update agar pull dari repo fork + tag
+      yang sama dengan strategi rilis.
+
+  [ ] Uji: buka dashboard → sidebar harus membandingkan versi lokal dengan
+      releases/latest repo fork; klik link mengarah ke html_url release Anda.
+
+
+================================================================================
+4. REFERENSI FILE DI CODEBASE
+================================================================================
+
+  WGDashboard-version-check-flow.txt     — alur detail upstream (API, navbar)
+  src/dashboard.py                       — API_getDashboardUpdate
+  src/modules/DashboardConfig.py         — DashboardVersion
+  src/static/app/src/components/navbar.vue — mounted → getDashboardUpdate
+  src/wgd.sh                             — update_wgd (git pull upstream)
+
+
+================================================================================
+Akhir dokumen
+================================================================================

@@ -60,6 +60,9 @@ class DashboardConfig:
                 ),
                 # Optional: systemd unit for "Restart WGDashboard" from UI (or set WGDASHBOARD_SYSTEMD_UNIT).
                 "systemd_unit": "",
+                # GitHub owner/repo for /api/getDashboardUpdate and wgd.sh update (releases/latest + git pull).
+                # Override with env WGDASHBOARD_UPDATE_GITHUB_REPO if set.
+                "update_github_repo": "WGDashboard/WGDashboard",
             },
             "Peers": {
                 "peer_global_DNS": "1.1.1.1",

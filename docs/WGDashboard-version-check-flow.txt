@@ -1,0 +1,153 @@
+================================================================================
+WGDashboard — Alur pengecekan versi / update dari GitHub
+(Dokumen referensi; ringkas untuk dibaca)
+================================================================================
+
+1. REPO & URL YANG DIPAKAI
+--------------------------------------------------------------------------------
+
+  A) API (server → GitHub)
+     URL bentuk:
+       https://api.github.com/repos/<owner>/<repo>/releases/latest
+
+     <owner>/<repo> diambil dari konfigurasi (lihat bagian 7). Default upstream:
+       WGDashboard/WGDashboard
+
+  B) Link yang dibuka di browser (jika ada update)
+     Diambil dari field JSON:  html_url
+
+     Bentuk tipikal:
+       https://github.com/<owner>/<repo>/releases/tag/<tag_name>
+
+     Di UI sidebar, teks notifikasi dibungkus anchor dengan href = html_url,
+     target="_blank" (tab baru).
+
+
+2. VERSI LOKAL ("Current Version")
+--------------------------------------------------------------------------------
+
+  Dibandingkan di backend dengan konstanta Python:
+
+       modules/DashboardConfig.py  →  DashboardVersion = 'v4.3.2'
+
+  Perbandingan memakai packaging.version.parse(tag_name) vs parse(DashboardVersion).
+
+  Teks "(Current Version: …)" di sidebar memakai nilai dari konfigurasi server
+  (Configuration.Server.version), biasanya selaras dengan versi dashboard.
+
+
+3. ALUR (FLOW) SINGKAT
+--------------------------------------------------------------------------------
+
+  1) User membuka aplikasi web → komponen sidebar (navbar) di-mount.
+
+  2) Frontend memanggil:  GET  /api/getDashboardUpdate
+
+  3) Backend (dashboard.py, API_getDashboardUpdate) membangun URL API dari
+     resolve_update_github_repo(), request ke api.github.com (timeout 5 detik).
+
+  4) Diambil:  tag_name  dan  html_url
+
+  5) Jika tag_name > DashboardVersion:
+        - Response sukses dengan pesan semisal "v4.3.3 is now available for update!"
+        - Field data berisi html_url (link halaman release).
+
+     Jika tidak lebih baru:
+        - Pesan: "You're on the latest version" (tanpa link release di data).
+
+  6) Jika request ke GitHub gagal:
+        - Response gagal; UI menampilkan pesan gagal cek (locale).
+
+
+4. KAPAN "TRIGGER" CEK UPDATE?
+--------------------------------------------------------------------------------
+
+  - Hanya saat sidebar (navbar) pertama kali di-mount, yaitu saat load/refresh
+    halaman yang memuat aplikasi.
+
+  - TIDAK ada polling berkala khusus untuk cek update (beda dengan interval
+    lain misalnya refresh daftar konfigurasi WireGuard ~10 detik).
+
+  - Jadi notifikasi update akan terlihat lagi setelah reload halaman atau
+    situasi yang membuat navbar di-render ulang.
+
+
+5. KONSISTENSI DENGAN UPDATE VIA CLI
+--------------------------------------------------------------------------------
+
+  Skrip wgd.sh (perintah update) mengambil tag dari API releases/latest untuk
+  repo yang sama (baca dari wg-dashboard.ini atau env), lalu:
+
+       git pull https://github.com/<owner>/<repo>.git <tag>
+
+  Sumber release di UI dan sumber untuk update CLI diselaraskan lewat
+  update_github_repo / WGDASHBOARD_UPDATE_GITHUB_REPO.
+
+
+6. FILE TERKAIT DI CODEBASE (untuk telusuri)
+--------------------------------------------------------------------------------
+
+  Backend:   src/dashboard.py          →  resolve_update_github_repo,
+                                         @app.get ... /api/getDashboardUpdate
+  Versi:     src/modules/DashboardConfig.py  →  DashboardVersion, update_github_repo
+  INI:       src/wg-dashboard.ini      →  [Server] update_github_repo
+  Skrip:     src/wgd.sh                  →  _read_update_github_repo, update_wgd
+  Frontend:  src/static/app/src/components/navbar.vue  → mounted + fetchGet
+
+
+7. KONFIGURASI owner/repo & APA YANG DIPERSIAPKAN (checklist)
+--------------------------------------------------------------------------------
+
+  Di [Server] wg-dashboard.ini:
+
+       update_github_repo = owner/repo
+
+  Contoh fork sendiri:
+
+       update_github_repo = arulriyadi/tunnela
+
+  Override tanpa edit file (container / systemd):
+
+       export WGDASHBOARD_UPDATE_GITHUB_REPO=owner/repo
+
+  Urutan prioritas (sama untuk logika "owner/repo"):
+
+  • Backend Python — resolve_update_github_repo() di dashboard.py
+       1) Environment WGDASHBOARD_UPDATE_GITHUB_REPO (jika tidak kosong)
+       2) [Server] update_github_repo dari wg-dashboard.ini (via DashboardConfig)
+       3) Jika kosong atau tidak cocok pola ^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$
+          → fallback WGDashboard/WGDashboard
+
+  • Skrip wgd.sh — _read_update_github_repo() (dipakai saat ./wgd.sh update)
+       1) Environment WGDASHBOARD_UPDATE_GITHUB_REPO (jika tidak kosong)
+       2) Jika CONFIGURATION_PATH diset dan file ada:
+            ${CONFIGURATION_PATH}/wg-dashboard.ini
+       3) Jika tidak, dari direktori kerja skrip:
+            ./wg-dashboard.ini
+       4) Jika file tidak ada / gagal baca → WGDashboard/WGDashboard
+
+  Catatan: jalankan ./wgd.sh dari folder src/ (tempat wg-dashboard.ini berada) kecuali
+  Anda memakai CONFIGURATION_PATH mengarah ke lokasi INI.
+
+  --- Persiapan di GitHub ---
+
+  [ ] Repo sudah ada (bisa private; lihat catatan di bawah).
+  [ ] Ada GitHub Release dengan tag semver (mis. v4.3.3) — "latest" mengikuti
+      release terbaru di GitHub.
+  [ ] Tag release selaras dengan apa yang ingin kamu bandingkan ke
+      DashboardVersion di kode saat kamu build/rilis.
+  [ ] (Opsional) Remote git lokal mengarah ke repo yang sama jika kamu pakai
+      ./wgd.sh update dari checkout git.
+
+  --- Catatan ---
+
+  - Repo publik: API releases/latest biasanya bisa tanpa token (dengan rate limit).
+  - Repo private: API butuh autentikasi; implementasi saat ini belum menyertakan
+    token — hanya cocok untuk repo publik atau jaringan yang sudah di-whitelist.
+  - Setelah ganti repo, pastikan DashboardVersion di DashboardConfig.py (dan
+    Server.version) mencerminkan build kamu agar pesan "ada update" masuk akal.
+
+
+================================================================================
+Akhir dokumen
+================================================================================

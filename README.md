@@ -251,5 +251,7 @@ Follows upstream **WGDashboard** licensing (see source headers; **Apache-2.0** p
 |-----|-------------|
 | [install-step-by-step.md](src/install-step-by-step.md) | Checklist, flow, INI sections (Indonesian). |
 | [implementasi-nginx-gunicorn-socket.md](src/implementasi-nginx-gunicorn-socket.md) | Nginx + socket deployment. |
+| [WGDashboard-version-check-flow.txt](docs/WGDashboard-version-check-flow.txt) | GitHub release check + `update_github_repo` / env (reference). |
+| [Tunnela-fork-version-check-github.txt](docs/Tunnela-fork-version-check-github.txt) | Fork checklist for releases & GitHub. |
 
 **TL;DR:** `cd src` → `./wgd.sh install` → `./wgd.sh start` → open `http://host:10086` → secure credentials and database.

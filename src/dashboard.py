@@ -254,6 +254,22 @@ _, app_ip = DashboardConfig.GetConfig("Server", "app_ip")
 _, app_port = DashboardConfig.GetConfig("Server", "app_port")
 _, WG_CONF_PATH = DashboardConfig.GetConfig("Server", "wg_conf_path")
 
+
+def resolve_update_github_repo():
+    """owner/repo for GitHub releases API; env WGDASHBOARD_UPDATE_GITHUB_REPO overrides ini."""
+    import re
+
+    env = os.environ.get("WGDASHBOARD_UPDATE_GITHUB_REPO", "").strip()
+    if env:
+        repo = env
+    else:
+        _, repo = DashboardConfig.GetConfig("Server", "update_github_repo")
+        repo = (repo or "").strip()
+    if not repo or not re.match(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$", repo):
+        return "WGDashboard/WGDashboard"
+    return repo
+
+
 '''
 API Routes
 '''
@@ -2081,7 +2097,9 @@ def API_traceroute_execute():
 def API_getDashboardUpdate():
     import urllib.request as req
     try:
-        r = req.urlopen("https://api.github.com/repos/WGDashboard/WGDashboard/releases/latest", timeout=5).read()
+        repo = resolve_update_github_repo()
+        api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+        r = req.urlopen(api_url, timeout=5).read()
         data = dict(json.loads(r))
         tagName = data.get('tag_name')
         htmlUrl = data.get('html_url')
